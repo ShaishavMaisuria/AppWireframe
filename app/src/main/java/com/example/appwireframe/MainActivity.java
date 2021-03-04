@@ -17,6 +17,7 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.security.KeyStore;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "okay";
     SeekBar seekBarSimpleComplexity;
     TextView textViewComplexity;
     ProgressBar progressBar;
@@ -56,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         buttonThread = findViewById(R.id.buttonGenerateUsingThread);
 
         list = new ArrayList<>();
-
+        progressBar.setVisibility(View.GONE);
         seekBarSimpleComplexity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -81,11 +83,20 @@ public class MainActivity extends AppCompatActivity {
         buttonAsyc.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!adapter.isEmpty()) {
+                    adapter.clear();
+                    adapter.notifyDataSetChanged();
+                }
+
+
+                Log.d(TAG, "onClick: Async button clicked");
                 int seekBarComplexityValue = seekBarSimpleComplexity.getProgress();
 
-
-                new MyTasks().execute(seekBarComplexityValue);
-
+                if (seekBarComplexityValue != 0) {
+                    new MyTasks().execute(seekBarComplexityValue);
+                } else {
+                    Toast.makeText(MainActivity.this, "Simple Complexity cant be Zero", Toast.LENGTH_SHORT).show();
+                }
                 // threadPool.execute(new DoWork(seekBarComplexityValue));
 
 
@@ -96,8 +107,9 @@ public class MainActivity extends AppCompatActivity {
         buttonThread.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "onClick: thread button clicked");
                 int seekBarComplexityValue = seekBarSimpleComplexity.getProgress();
-                if(!adapter.isEmpty()) {
+                if (!adapter.isEmpty()) {
                     adapter.clear();
                     adapter.notifyDataSetChanged();
                 }
@@ -109,38 +121,41 @@ public class MainActivity extends AppCompatActivity {
 
                         switch (msg.what) {
                             case DoWork.STATUS_PROGRESS:
+                                Log.d(TAG, "on progress");
                                 progressBar.setProgress(msg.getData().getInt(DoWork.PROGRESS_KEY));
-                                textViewprogress.setText(msg.getData().getInt(DoWork.PROGRESS_KEY) + " /" + msg.getData().getInt(DoWork.PROGRESS_MAX_LENGTH));
-                                Log.d("demoav",""+msg.getData().getDouble(DoWork.PROGRESS_AVERAGE));
-                                textAverage.setText( String.valueOf(msg.getData().getDouble(DoWork.PROGRESS_AVERAGE)));
+                                textViewprogress.setText(msg.getData().getInt(DoWork.PROGRESS_KEY) + " /" + seekBarComplexityValue);
+                                textAverage.setText("Average: "+msg.getData().getDouble(DoWork.PROGRESS_AVERAGE));
                                 adapter.notifyDataSetChanged();
 
                                 break;
                             case DoWork.STATUS_START:
-
-                                progressBar.setMax(msg.getData().getInt(DoWork.PROGRESS_MAX_LENGTH));
+                                    Log.d(TAG,"on start");
+                                progressBar.setVisibility(View.VISIBLE);
+                                progressBar.setMax(seekBarComplexityValue);
                                 buttonAsyc.setEnabled(false);
                                 buttonThread.setEnabled(false);
                                 break;
                             case DoWork.STATUS_END:
+                                Log.d(TAG, "on end ");
                                 buttonAsyc.setEnabled(true);
                                 buttonThread.setEnabled(true);
                                 break;
-
                         }
-
-
                         return false;
                     }
 
                 });
 
 
-                // threadPool.execute(new DoWork(seekBarComplexityValue));
-                new Thread(new DoWork(seekBarComplexityValue)).start();
+                if (seekBarComplexityValue != 0) {
+
+                    threadPool.execute(new DoWork(seekBarComplexityValue));
 
 
-                Log.d("demo","end");
+            } else {
+                    progressBar.setVisibility(View.GONE);
+                Toast.makeText(MainActivity.this, "Simple Complexity cant be Zero", Toast.LENGTH_SHORT).show();
+            }
 
             }
         });
@@ -162,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
             progressBar.setVisibility(View.VISIBLE);
             buttonAsyc.setEnabled(false);
             buttonThread.setEnabled(false);
-            textViewprogress.setText("Hello");
+
         }
 
         @Override
@@ -189,18 +204,15 @@ public class MainActivity extends AppCompatActivity {
 
 
             limit = params[0];
-            progressBar.setMax((params[0])); //wrong .. can't access ui in childthread
             double count = 0;
             for (int i = 0; i < params[0]; i++) {
                 list.add(HeavyWork.getNumber());
                 total = total + list.get(i);
                 average = total / (i + 1);
                 publishProgress(i + 1, params[0]);
-                progressBar.setProgress(i + 1); //wrong .. can't access ui in childthread
+           }
 
-            }
 
-            textViewprogress.setText("Hello00000"); //wrong .. can't access ui in childthread
             return list;
         }
     }
@@ -216,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
         static final String PROGRESS_AVERAGE = "PROGRESS_AVERAGE";
 
         public DoWork(int count) {
-           params=count;
+            params = count;
 
             Log.d("demo", "startconstructor ");
 
@@ -231,9 +243,6 @@ public class MainActivity extends AppCompatActivity {
             Message startMessage = new Message();
             startMessage.what = STATUS_START;
 
-            Bundle startbundle = new Bundle();
-            startbundle.putInt(PROGRESS_MAX_LENGTH, (Integer) params);
-            startMessage.setData(startbundle);
             handler.sendMessage(startMessage);
 
 
@@ -250,28 +259,14 @@ public class MainActivity extends AppCompatActivity {
                 Bundle bundle = new Bundle();
                 bundle.putDouble(PROGRESS_AVERAGE, (Double) average);
                 bundle.putInt(PROGRESS_KEY, (Integer) i + 1);
-                bundle.putInt(PROGRESS_MAX_LENGTH, (Integer) params);
-
                 message.setData(bundle);
                 handler.sendMessage(message);
-                // progressBar.setProgress(i+1);
-                // textViewprogress.setText((i+1)+" /"+count);
-                // textAverage.setText("Average "+ average);
-                // adapter.notifyDataSetChanged();
-
-                //progressBar.setProgress(i+1); //wrong .. can't access ui in childthread
-
-
             }
-
 
             Log.d("demo", "end run ");
             Message endMessage = new Message();
-            startMessage.what = STATUS_END;
-
+            endMessage.what = STATUS_END;
             handler.sendMessage(endMessage);
-
-
         }
     }
 }
