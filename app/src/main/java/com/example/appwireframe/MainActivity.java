@@ -7,11 +7,17 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Adapter;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.ListAdapter;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import java.security.KeyStore;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,9 +25,13 @@ public class MainActivity extends AppCompatActivity {
     TextView textViewComplexity;
     ProgressBar progressBar;
     ArrayList<Double> list;
-    Adapter adapter;
+    ArrayAdapter adapter;
     TextView textViewprogress;
     TextView textAverage;
+    ListView listView;
+    Button buttonAsyc;
+
+    ExecutorService threadPool;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
        seekBarSimpleComplexity = findViewById(R.id.seekBarComplexity);
        textViewprogress=findViewById(R.id.textViewProgress);
         textAverage=findViewById(R.id.textViewAverage);
+        listView= findViewById(R.id.listView);
+        buttonAsyc=findViewById(R.id.buttonAsyncTask);
 
        list = new ArrayList<>();
 
@@ -55,13 +67,21 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+adapter= new ArrayAdapter<Double>(this, android.R.layout.simple_list_item_1,android.R.id.text1 ,list);
+        listView.setAdapter((ListAdapter) adapter);
 
-
-        findViewById((R.id.buttonAsyncTask)).setOnClickListener(new View.OnClickListener() {
+        buttonAsyc.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 int seekBarComplexityValue =seekBarSimpleComplexity.getProgress();
+
+
+
                 new MyTasks().execute(seekBarComplexityValue);
+
+               // threadPool.execute(new DoWork(seekBarComplexityValue));
+
+
             }
         });
 
@@ -76,16 +96,27 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPreExecute() {
             Log.d("demo","onPreExecute ");
+            adapter.clear();
+            adapter.notifyDataSetChanged();
             progressBar.setVisibility(View.VISIBLE);
+            buttonAsyc.setEnabled(false);
+            textViewprogress.setText("Hello");
         }
 
+        @Override
+        protected void onPostExecute(ArrayList<Double> doubles) {
+            buttonAsyc.setEnabled(true);
+        }
 
         @Override
         protected void onProgressUpdate(Integer... values) {
             Log.d("demo","onProgressUpdate "+values[0]);
+
+            progressBar.setMax(values[1]);
             progressBar.setProgress(values[0]);
             textViewprogress.setText(values[0].toString()+" /"+limit);
             textAverage.setText("Average "+ average);
+            adapter.notifyDataSetChanged();
 
         }
 
@@ -93,18 +124,34 @@ public class MainActivity extends AppCompatActivity {
         protected ArrayList<Double> doInBackground(Integer... params) {
             Log.d("demo","doInBackground "+params[0]);
 
+
+
             limit=params[0];
-            progressBar.setMax((params[0]));
+            progressBar.setMax((params[0])); //wrong .. can't access ui in childthread
             double count=0;
             for(int i=0;i<params[0];i++){
                 list.add(HeavyWork.getNumber());
                 total=total+list.get(i);
                 average=total/(i+1);
-                publishProgress(i+1);
+                publishProgress(i+1, params[0]);
+                progressBar.setProgress(i+1); //wrong .. can't access ui in childthread
+
             }
 
+            textViewprogress.setText("Hello00000"); //wrong .. can't access ui in childthread
             return list;
         }
     }
 
+
+    class DoWork implements Runnable{
+        public DoWork(int count){
+
+        }
+        @Override
+        public void run() {
+
+
+        }
+    }
 }
